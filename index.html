@@ -60,9 +60,6 @@
 // --- Configuration ---
 const SUPABASE_URL = "https://nrwckhyegdkcbfbiitxz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yd2NraHllZ2RrY2JmYmlpdHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzYxMzcsImV4cCI6MjA4NzcxMjEzN30.j_4uCVEG2CoNv9n8tGJaPwZNqSuEqZUZUxxVLdGZcEo";
-const GITHUB_OWNER = "azzamunza";
-const GITHUB_REPO = "miniature-model-life";
-const GITHUB_FILE_PATH = "presets.json";
 
 // Initialize Supabase
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -73,65 +70,19 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 const authContainer = document.createElement("div");
 authContainer.className = "field";
 authContainer.innerHTML = `
- <h3>Authentication & GitHub</h3>
+ <h3>Authentication</h3>
  <div id="login-section">
    <button id="login-btn" style="background:#4285F4; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer;">Sign in with Google</button>
  </div>
  <div id="user-section" style="display:none; align-items:center; gap:10px;">
    <span id="user-email"></span>
    <button id="logout-btn">Log out</button>
-   <div style="margin-top: 10px;">
-     <input type="password" id="gh-pat" placeholder="GitHub PAT (ghp_...)" title="Required to push changes to GitHub" style="width:250px;">
-     <button id="save-pat-btn">Save PAT</button>
-   </div>
  </div>
 `;
 document.body.insertBefore(authContainer, document.getElementById("fields"));
 
-// --- GitHub API Helper ---
-const githubAPI = {
-  _token() { return localStorage.getItem('gh_pat') || ''; },
-  async getFile() {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`, {
-      headers: { 'Authorization': `Bearer ${this._token()}`, 'Accept': 'application/vnd.github+json' }
-    });
-    if (!res.ok) {
-        if (res.status === 404) return { content: "{}", sha: null };
-        throw new Error("Failed to fetch from GitHub");
-    }
-    const data = await res.json();
-    return { 
-        content: decodeURIComponent(escape(atob(data.content))), 
-        sha: data.sha 
-    };
-  },
-  async putFile(contentStr, sha) {
-    if (!this._token()) {
-        alert("Please enter your GitHub Personal Access Token (PAT) first to save online.");
-        return false;
-    }
-    const body = {
-      message: "Update presets.json",
-      content: btoa(unescape(encodeURIComponent(contentStr)))
-    };
-    if (sha) body.sha = sha;
-    
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`, {
-      method: 'PUT',
-      headers: { 
-        'Authorization': `Bearer ${this._token()}`, 
-        'Accept': 'application/vnd.github+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error("Failed to push to GitHub");
-    return true;
-  }
-};
-
 // --- Auth Logic ---
-let fileSha = null;
+let currentUser = null;
 
 async function checkUser() {
   // Exchange code if returning from redirect
@@ -143,27 +94,29 @@ async function checkUser() {
 
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
+    currentUser = session.user;
     document.getElementById("login-section").style.display = "none";
     document.getElementById("user-section").style.display = "flex";
-    document.getElementById("user-section").style.flexWrap = "wrap";
     document.getElementById("user-email").textContent = session.user.email;
-    document.getElementById("gh-pat").value = localStorage.getItem('gh_pat') || '';
     
-    // Attempt to load presets from GitHub
-    if (localStorage.getItem('gh_pat')) {
-      try {
-        const { content, sha } = await githubAPI.getFile();
-        if (content) {
-          localStorage.setItem("promptData", content); // sync to local
-          fileSha = sha;
-          // Refresh fields if they are already rendered
-          document.querySelectorAll('.field select').forEach(s => s.dispatchEvent(new Event('refresh')));
-        }
-      } catch (e) {
-        console.error("Error loading GitHub presets:", e);
+    // Attempt to load presets from Supabase
+    try {
+      const { data, error } = await supabase
+        .from('user_presets')
+        .select('prompt_data')
+        .eq('user_id', currentUser.id)
+        .single();
+        
+      if (data && data.prompt_data) {
+        localStorage.setItem("promptData", JSON.stringify(data.prompt_data));
+        // Refresh fields if they are already rendered
+        document.querySelectorAll('.field select').forEach(s => s.dispatchEvent(new Event('refresh')));
       }
+    } catch (e) {
+      console.error("Error loading Supabase presets:", e);
     }
   } else {
+    currentUser = null;
     document.getElementById("login-section").style.display = "block";
     document.getElementById("user-section").style.display = "none";
   }
@@ -179,15 +132,6 @@ document.getElementById("login-btn").onclick = async () => {
 document.getElementById("logout-btn").onclick = async () => {
   await supabase.auth.signOut();
   checkUser();
-};
-
-document.getElementById("save-pat-btn").onclick = () => {
-  const pat = document.getElementById("gh-pat").value;
-  if (pat) {
-    localStorage.setItem('gh_pat', pat);
-    alert("GitHub PAT saved securely in your browser's local storage.");
-    checkUser(); // Reload data with new PAT
-  }
 };
 
 supabase.auth.onAuthStateChange(() => checkUser());
@@ -237,17 +181,15 @@ async function saveData(data) {
  const dataStr = JSON.stringify(data, null, 2);
  localStorage.setItem("promptData", dataStr);
  
- // If user is logged in and has a PAT, push to GitHub
- if (localStorage.getItem('gh_pat')) {
+ // Sync to Supabase if logged in
+ if (currentUser) {
    try {
-     const success = await githubAPI.putFile(dataStr, fileSha);
-     if (success) {
-       // Refresh SHA for next save
-       const updated = await githubAPI.getFile();
-       fileSha = updated.sha;
-     }
+     const { error } = await supabase
+       .from('user_presets')
+       .upsert({ user_id: currentUser.id, prompt_data: data });
+     if (error) throw error;
    } catch (e) {
-     alert("Error saving to GitHub: " + e.message);
+     console.error("Error saving to Supabase:", e.message);
    }
  }
 }

@@ -62,9 +62,9 @@ const SUPABASE_URL = "https://nrwckhyegdkcbfbiitxz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yd2NraHllZ2RrY2JmYmlpdHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzYxMzcsImV4cCI6MjA4NzcxMjEzN30.j_4uCVEG2CoNv9n8tGJaPwZNqSuEqZUZUxxVLdGZcEo";
 
 // Initialize Supabase safely
-let supabase = null;
+let supabaseClient = null;
 if (window.supabase) {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
    auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true }
   });
 }
@@ -88,15 +88,15 @@ document.body.insertBefore(authContainer, document.getElementById("fields"));
 let currentUser = null;
 
 async function checkUser() {
-  if (!supabase) return;
+  if (!supabaseClient) return;
   // Exchange code if returning from redirect
   const params = new URLSearchParams(location.search);
   if (params.get('code')) {
-    const { error } = await supabase.auth.exchangeCodeForSession(params.get('code'));
+    const { error } = await supabaseClient.auth.exchangeCodeForSession(params.get('code'));
     if (!error) history.replaceState({}, document.title, location.pathname);
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await supabaseClient.auth.getSession();
   if (session) {
     currentUser = session.user;
     document.getElementById("login-section").style.display = "none";
@@ -105,7 +105,7 @@ async function checkUser() {
     
     // Attempt to load presets from Supabase
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('user_presets')
         .select('prompt_data')
         .eq('user_id', currentUser.id)
@@ -127,20 +127,20 @@ async function checkUser() {
 }
 
 document.getElementById("login-btn").onclick = async () => {
-  if (!supabase) return alert("Login service unavailable. Check your connection or adblocker.");
-  await supabase.auth.signInWithOAuth({
+  if (!supabaseClient) return alert("Login service unavailable. Check your connection or adblocker.");
+  await supabaseClient.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.href }
   });
 };
 
 document.getElementById("logout-btn").onclick = async () => {
-  if (supabase) await supabase.auth.signOut();
+  if (supabaseClient) await supabaseClient.auth.signOut();
   checkUser();
 };
 
-if (supabase) {
-  supabase.auth.onAuthStateChange(() => checkUser());
+if (supabaseClient) {
+  supabaseClient.auth.onAuthStateChange(() => checkUser());
   checkUser();
 }
 
@@ -195,9 +195,9 @@ async function saveData(data) {
  localStorage.setItem("promptData", dataStr);
  
  // Sync to Supabase if logged in
- if (currentUser && supabase) {
+ if (currentUser && supabaseClient) {
    try {
-     const { error } = await supabase
+     const { error } = await supabaseClient
        .from('user_presets')
        .upsert({ user_id: currentUser.id, prompt_data: data });
      if (error) throw error;

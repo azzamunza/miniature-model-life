@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Prompt Builder</title>
+<style>
+ body {
+ font-family: Arial, sans-serif;
+ margin: 20px;
+ background: #f5f5f5;
+ }
+
+ h2 {
+ margin-top: 30px;
+ }
+
+ .field {
+ background: #fff;
+ padding: 10px;
+ margin-bottom: 10px;
+ border-radius: 6px;
+ }
+
+ textarea {
+ width: 100%;
+ min-height: 60px;
+ resize: vertical;
+ }
+
+ input, select, button {
+ margin-top: 5px;
+ }
+
+ .row {
+ display: flex;
+ gap: 10px;
+ flex-wrap: wrap;
+ }
+
+ .output {
+ white-space: pre-wrap;
+ background: #222;
+ color: #0f0;
+ padding: 15px;
+ border-radius: 6px;
+ }
+</style>
+</head>
+<body>
+
+<h1>Prompt Builder</h1>
+
+<div id="fields"></div>
+
+<h2>Final Prompt</h2>
+<div class="output" id="output"></div>
+
+<script>
+const variables = [
+"giant_person_description",
+"location_name",
+"location_style",
+"water_type",
+"water_motion",
+"shore_type",
+"key_landmarks",
+"vegetation",
+"miniature_structures",
+"small_details",
+"underwater_feature",
+"hand_action",
+"tiny_object",
+"interaction_verb",
+"interaction_surface",
+"ripple_effect",
+"secondary_motion",
+"lighting_type",
+"time_of_day",
+"camera_style",
+"lens_effect",
+"camera_movement",
+"aspect_ratio",
+"visual_style",
+"detail_level",
+"mood"
+];
+
+const template = `A photorealistic vertical video of {giant_person_description} leaning over a large tabletop miniature diorama of {location_name}, {location_style}. The diorama features {water_type} with realistic {water_motion}, {shore_type}, {key_landmarks}, {vegetation}, and {miniature_structures}. {small_details} are scattered throughout. {underwater_feature}.
+
+The person's {hand_action} {tiny_object} {interaction_verb} the {interaction_surface}, creating {ripple_effect}. {secondary_motion}.
+
+Lighting: {lighting_type}, {time_of_day}, natural shadows. Camera: {camera_style}, {lens_effect}, slow {camera_movement}, {aspect_ratio}. Style: {visual_style}, {detail_level}, {mood} mood.`;
+
+// Load saved data
+function loadData() {
+ return JSON.parse(localStorage.getItem("promptData") || "{}");
+}
+
+function saveData(data) {
+ localStorage.setItem("promptData", JSON.stringify(data));
+}
+
+function createField(name) {
+ const container = document.createElement("div");
+ container.className = "field";
+
+ const title = document.createElement("h3");
+ title.textContent = name;
+
+ const textarea = document.createElement("textarea");
+
+ const saveName = document.createElement("input");
+ saveName.placeholder = "Preset name";
+
+ const dropdown = document.createElement("select");
+
+ const saveBtn = document.createElement("button");
+ saveBtn.textContent = "Save";
+
+ // Populate dropdown
+ function refreshDropdown() {
+ dropdown.innerHTML = "";
+ const data = loadData();
+ if (data[name]) {
+ Object.keys(data[name]).forEach(key => {
+ const opt = document.createElement("option");
+ opt.value = key;
+ opt.textContent = key;
+ dropdown.appendChild(opt);
+ });
+ }
+ }
+
+ // Save preset
+ saveBtn.onclick = () => {
+ if (!saveName.value) return alert("Enter preset name");
+
+ const data = loadData();
+ if (!data[name]) data[name] = {};
+
+ data[name][saveName.value] = textarea.value;
+ saveData(data);
+ refreshDropdown();
+ };
+
+ // Load preset
+ dropdown.onchange = () => {
+ const data = loadData();
+ textarea.value = data[name][dropdown.value];
+ updateOutput();
+ };
+
+ textarea.oninput = updateOutput;
+
+ refreshDropdown();
+
+ container.appendChild(title);
+ container.appendChild(textarea);
+ container.appendChild(saveName);
+ container.appendChild(saveBtn);
+ container.appendChild(dropdown);
+
+ return container;
+}
+
+// Build UI
+const fieldsDiv = document.getElementById("fields");
+variables.forEach(v => {
+ fieldsDiv.appendChild(createField(v));
+});
+
+// Generate output
+function updateOutput() {
+ let result = template;
+
+ variables.forEach(v => {
+ const field = [...document.querySelectorAll(".field")]
+ .find(f => f.querySelector("h3").textContent === v);
+
+ const value = field.querySelector("textarea").value || `{${v}}`;
+ result = result.replaceAll(`{${v}}`, value);
+ });
+
+ document.getElementById("output").textContent = result;
+}
+
+updateOutput();
+</script>
+
+</body>
+</html>

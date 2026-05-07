@@ -222,39 +222,86 @@ function createField(name) {
  const dropdown = document.createElement("select");
 
  const saveBtn = document.createElement("button");
- saveBtn.textContent = "Save";
+ saveBtn.textContent = "Save New";
+
+ const updateBtn = document.createElement("button");
+ updateBtn.textContent = "Update";
+
+ const deleteBtn = document.createElement("button");
+ deleteBtn.textContent = "Delete";
+
+ function updateButtonStates() {
+   const hasSelection = dropdown.options.length > 0 && dropdown.value !== "";
+   updateBtn.disabled = !hasSelection;
+   deleteBtn.disabled = !hasSelection;
+ }
 
  // Populate dropdown
  function refreshDropdown() {
- dropdown.innerHTML = "";
- const data = loadData();
- if (data[name]) {
- Object.keys(data[name]).forEach(key => {
- const opt = document.createElement("option");
- opt.value = key;
- opt.textContent = key;
- dropdown.appendChild(opt);
- });
- }
+   dropdown.innerHTML = "";
+   const data = loadData();
+   if (data[name]) {
+     Object.keys(data[name]).forEach(key => {
+       const opt = document.createElement("option");
+       opt.value = key;
+       opt.textContent = key;
+       dropdown.appendChild(opt);
+     });
+   }
+   updateButtonStates();
  }
 
  // Save preset
  saveBtn.onclick = () => {
- if (!saveName.value) return alert("Enter preset name");
+   if (!saveName.value) return alert("Enter preset name");
 
- const data = loadData();
- if (!data[name]) data[name] = {};
+   const data = loadData();
+   if (!data[name]) data[name] = {};
 
- data[name][saveName.value] = textarea.value;
- saveData(data);
- refreshDropdown();
+   data[name][saveName.value] = textarea.value;
+   saveData(data);
+   refreshDropdown();
+   dropdown.value = saveName.value;
+   updateButtonStates();
+   saveName.value = "";
+ };
+
+ // Update preset
+ updateBtn.onclick = () => {
+   if (!dropdown.value) return;
+   const data = loadData();
+   if (!data[name]) data[name] = {};
+   data[name][dropdown.value] = textarea.value;
+   saveData(data);
+   
+   const originalText = updateBtn.textContent;
+   updateBtn.textContent = "Updated!";
+   setTimeout(() => updateBtn.textContent = originalText, 1000);
+ };
+
+ // Delete preset
+ deleteBtn.onclick = () => {
+   if (!dropdown.value) return;
+   if (!confirm(`Delete preset '${dropdown.value}'?`)) return;
+   
+   const data = loadData();
+   if (data[name] && data[name][dropdown.value]) {
+     delete data[name][dropdown.value];
+     saveData(data);
+   }
+   textarea.value = "";
+   updateOutput();
+   refreshDropdown();
  };
 
  // Load preset
  dropdown.onchange = () => {
- const data = loadData();
- textarea.value = data[name][dropdown.value];
- updateOutput();
+   const data = loadData();
+   if (data[name] && data[name][dropdown.value]) {
+     textarea.value = data[name][dropdown.value];
+     updateOutput();
+   }
+   updateButtonStates();
  };
 
  textarea.oninput = updateOutput;
@@ -262,11 +309,26 @@ function createField(name) {
  dropdown.addEventListener('refresh', refreshDropdown);
  refreshDropdown();
 
+ const controlsDiv = document.createElement("div");
+ controlsDiv.className = "row";
+ controlsDiv.style.alignItems = "center";
+ controlsDiv.style.marginTop = "5px";
+ 
+ controlsDiv.appendChild(saveName);
+ controlsDiv.appendChild(saveBtn);
+ 
+ const separator = document.createElement("span");
+ separator.innerHTML = "&nbsp;|&nbsp;";
+ separator.style.color = "#ccc";
+ controlsDiv.appendChild(separator);
+ 
+ controlsDiv.appendChild(dropdown);
+ controlsDiv.appendChild(updateBtn);
+ controlsDiv.appendChild(deleteBtn);
+
  container.appendChild(title);
  container.appendChild(textarea);
- container.appendChild(saveName);
- container.appendChild(saveBtn);
- container.appendChild(dropdown);
+ container.appendChild(controlsDiv);
 
  return container;
 }

@@ -109,7 +109,7 @@ async function checkUser() {
         .from('user_presets')
         .select('prompt_data')
         .eq('user_id', currentUser.id)
-        .single();
+        .maybeSingle();
         
       if (data && data.prompt_data) {
         localStorage.setItem("promptData", JSON.stringify(data.prompt_data));

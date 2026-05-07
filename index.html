@@ -239,6 +239,12 @@ function createField(name) {
  // Populate dropdown
  function refreshDropdown() {
    dropdown.innerHTML = "";
+   
+   const defaultOpt = document.createElement("option");
+   defaultOpt.value = "";
+   defaultOpt.textContent = "-- Select Preset --";
+   dropdown.appendChild(defaultOpt);
+
    const data = loadData();
    if (data[name]) {
      Object.keys(data[name]).forEach(key => {
@@ -297,7 +303,10 @@ function createField(name) {
  // Load preset
  dropdown.onchange = () => {
    const data = loadData();
-   if (data[name] && data[name][dropdown.value]) {
+   if (dropdown.value === "") {
+     textarea.value = "";
+     updateOutput();
+   } else if (data[name] && data[name][dropdown.value]) {
      textarea.value = data[name][dropdown.value];
      updateOutput();
    }
